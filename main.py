@@ -11,10 +11,13 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
+from typing import List, Dict
 
-user_films = {}
-film_ratings = {}
-user_votes = {}
+from markup import start_markup
+
+user_films: Dict[str, List[str]] = {}
+film_ratings: Dict[str, int] = {}
+user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
 
 TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
 
@@ -29,7 +32,8 @@ async def start(message: types.Message):
 
 Доступные команды:
 /help - получить справку
-    """
+    """,
+    reply_markup=start_markup()
     )
 
 @dp.message(Command("help"))
@@ -49,7 +53,7 @@ async def add(message: types.Message):
         await message.reply("Пожалуйста, введите два названия фильмов, разделенных запятой.")
         return
  
-    user_name = message.from_user.username or message.from_user.first_name
+    user_name: str = message.from_user.username or message.from_user.first_name
     
     film1, film2 = map(str.strip, message.text.replace('/add ', '').split(','))
     if film1 == film2:
@@ -75,7 +79,6 @@ async def add(message: types.Message):
 async def vote(message: types.Message):
     if len(message.text.split(',')) != 2:
         await message.reply("Формат : /vote <название фильма>,<голос>")
-        return
     user_name = message.from_user.username or message.from_user.first_name
     film_name, vote = map(str.strip, message.text.replace('/vote ', '').split(','))
     if film_name not in film_ratings:
@@ -102,7 +105,7 @@ async def vote(message: types.Message):
     else:
         user_votes[user_name][film_name] = {'за':0, 'против': 1}
     
-    current_score = film_ratings.get(film_name, 0)
+    current_score: int = film_ratings.get(film_name, 0)
     if vote.lower() == 'за':
         current_score += 1
     else:
@@ -115,8 +118,17 @@ async def vote(message: types.Message):
 
 @dp.message(Command("list"))
 async def list(message: types.Message):
-    films_list = "\n".join(film_ratings.keys())
+    films_list: str = "\n".join(film_ratings.keys())
     await message.answer(f'список добавленх фильмов:\n{films_list}')
+
+@dp.message()
+async def reply(message: types.Message):
+    if message.text == 'HEГP':
+        await help(message)
+    elif message.text == 'Голосование':
+        await vote(message)
+    elif message.text == 'Список':
+        await list(message)
 
 async def main():
     bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
