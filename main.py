@@ -12,6 +12,8 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
 
+user_films = {}
+film_ratings = {}
 
 TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
 
@@ -36,14 +38,34 @@ async def help(message: types.Message):
 *Доступные команды:*
 /add - добавить два фильма для голосования (разделите названия запятой)
 /vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма] [голос]`)
-/show - вывести список фильмов
+/list - вывести список фильмов
     """
     )
 
 @dp.message(Command("add"))
 async def add(message: types.Message):
-    username = message.from_user.username or message.from_user.full_name
-    await message.answer('')
+    if len(message.text.split(',')) != 2:
+        await message.reply("Пожалуйста, введите два названия фильмов, разделенных запятой.")
+        return
+
+    user_name = message.from_user.username or message.from_user.first_name
+
+    film1, film2 = map(str.strip, message.text.replace('/add ', '').split(','))
+
+    if user_name in user_films:
+        await message.reply("У вас уже есть фильмы в списке!")
+        return
+    
+    if film1 in film_ratings.keys():
+        await message.reply(f'{film1}- повтор')
+        return
+    if film2 in film_ratings.keys():
+        await message.reply(f'{film2}- повтор')
+        return 
+
+    user_films[user_name] = [film1, film2]
+    await message.reply(f"Фильмы {film1} и {film2} добавлены для пользователя {user_name}.")
+    film_ratings.update({film1: 0, film2: 0})
 
 @dp.message(Command("vote"))
 async def vode(message: types.Message):
@@ -51,7 +73,8 @@ async def vode(message: types.Message):
 
 @dp.message(Command("list"))
 async def list(message: types.Message):
-    await message.answer('')
+    films_list = "\n".join(film_ratings.keys())
+    await message.answer(f'список добавленх фильмов:\n{films_list}')
 
 async def main():
     bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
