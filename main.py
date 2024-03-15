@@ -42,7 +42,7 @@ async def help(message: types.Message):
     """
 *Доступные команды:*
 /add - добавить два фильма для голосования (разделите названия запятой)
-/vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма] [голос]`)
+/vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма][за/против]`)
 /list - вывести список фильмов
     """
     )
@@ -78,7 +78,7 @@ async def add(message: types.Message):
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
     if len(message.text.split(',')) != 2:
-        await message.reply("Формат : /vote <название фильма>,<голос>")
+        await message.reply("Формат : /vote <название фильма>,<за/против>")
     user_name = message.from_user.username or message.from_user.first_name
     film_name, vote = map(str.strip, message.text.replace('/vote ', '').split(','))
     if film_name not in film_ratings:
@@ -119,7 +119,7 @@ async def vote(message: types.Message):
 @dp.message(Command("list"))
 async def list(message: types.Message):
     films_list: str = "\n".join(film_ratings.keys())
-    await message.answer(f'список добавленх фильмов:\n{films_list}')
+    await message.answer(f'список добавленых фильмов:\n{films_list}')
 
 @dp.message()
 async def reply(message: types.Message):
