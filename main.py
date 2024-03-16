@@ -19,38 +19,35 @@ user_films: Dict[str, List[str]] = {}
 film_ratings: Dict[str, int] = {}
 user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
 gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
-users_to_notify = ['383688364', '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
+users_to_notify = ['383688364']
+#, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
 TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
-
 dp = Dispatcher()
 
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer(
-        """
-    *НЕГРЫ!*, ПИДОРЫ!Привет! Я бот для голосования за фильмы.
-    
-    Доступные команды:
-    /help - получить справку
-        """,
-        reply_markup=start_markup()
+    """
+*НЕГРЫ!*, ПИДОРЫ!Привет! Я бот для голосования за фильмы.
+Доступные команды:
+/help - получить справку
+    """,
+    reply_markup=start_markup()
     )
-
 
 @dp.message(Command("help"))
 async def help(message: types.Message):
     await message.answer(
-        """
-    *Доступные команды:*
-    /add - добавить два фильма для голосования (разделите названия запятой)
-    /vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма],[за/против]`)
-    /film_list - вывести список фильмов
-        """
+    """
+*Доступные команды:*
+/add - добавить два фильма для голосования (разделите названия запятой)
+/vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма],[за/против]`)
+/filmlist - вывести список фильмов
+    """
     )
-
 
 @dp.message(Command("add"))
 async def add(message: types.Message):
@@ -80,7 +77,6 @@ async def add(message: types.Message):
     await message.reply(f"Фильмы {film1} и {film2} добавлены для пользователя {user_name}.")
     film_ratings.update({film1: 0, film2: 0})
 
-
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
     if len(message.text.split(',')) != 2:
@@ -90,7 +86,7 @@ async def vote(message: types.Message):
     if film_name not in film_ratings:
         await message.reply("Фильма нет или я гей и хуёво закодил")
         return
-    if vote.lower() not in ['за', 'против']:
+    if vote.lower() not in ['за','против']:
         await message.reply("Голос должен быть 'за' или 'против' ")
         return
     if film_name in user_films.get(user_name, []):
@@ -105,11 +101,11 @@ async def vote(message: types.Message):
         await message.reply("Голоса кончились")
         return
 
-    # TODO нужно чтобы голосов "за" и "против" было не больше двух
+    #TODO нужно чтобы голосов "за" и "против" было не больше двух
     if vote.lower() == 'за':
         user_votes[user_name][film_name] = {'за': 1, 'против': 0}
     else:
-        user_votes[user_name][film_name] = {'за': 0, 'против': 1}
+        user_votes[user_name][film_name] = {'за':0, 'против': 1}
 
     current_score: int = film_ratings.get(film_name, 0)
     if vote.lower() == 'за':
@@ -121,25 +117,19 @@ async def vote(message: types.Message):
 
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
-
-
 '''
 @dp.message(Command("list"))
 async def list(message: types.Message):
     films_list: str = "\n".join(film_ratings.keys())
     await message.answer(f'список добавленых фильмов:\n{films_list}')
 '''
-
-
-@dp.message(Command("film_list"))
-async def film_list(message: types.Message):
+@dp.message(Command("filmlist"))
+async def filmlist(message: types.Message):
     films = list(film_ratings.keys())
 
     random.shuffle(films)
     films_str: str = "\n".join(films)
     await message.answer(f'Список добавленных фильмов в случайном порядке:\n{films_str}')
-
-
 @dp.message()
 async def reply(message: types.Message):
     if message.text == 'HEГP':
@@ -147,8 +137,7 @@ async def reply(message: types.Message):
     elif message.text == 'Голосование':
         await vote(message)
     elif message.text == 'Список':
-        await film_list(message)
-
+        await filmlist(message)
 
 async def send_message_to_users():
     for user_id in users_to_notify:
@@ -165,8 +154,6 @@ async def main():
     await send_message_to_users()
     await dp.start_polling(bot)
 
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     asyncio.run(main())
-
