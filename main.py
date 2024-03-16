@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+import random
 import asyncio
 import logging
 import sys
@@ -43,7 +43,7 @@ async def help(message: types.Message):
 *Доступные команды:*
 /add - добавить два фильма для голосования (разделите названия запятой)
 /vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма],[за/против]`)
-/list - вывести список фильмов
+/film_list - вывести список фильмов
     """
     )
 
@@ -116,10 +116,21 @@ async def vote(message: types.Message):
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
 
+'''
 @dp.message(Command("list"))
 async def list(message: types.Message):
     films_list: str = "\n".join(film_ratings.keys())
     await message.answer(f'список добавленых фильмов:\n{films_list}')
+'''
+
+@dp.message(Command("film_list"))
+async def film_list(message: types.Message):
+    films = list(film_ratings.keys())
+
+    random.shuffle(films)
+    films_str: str = "\n".join(films)
+    await message.answer(f'Список добавленных фильмов в случайном порядке:\n{films_str}')
+
 
 @dp.message()
 async def reply(message: types.Message):
@@ -128,7 +139,7 @@ async def reply(message: types.Message):
     elif message.text == 'Голосование':
         await vote(message)
     elif message.text == 'Список':
-        await list(message)
+        await film_list(message)
 
 async def main():
     bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
