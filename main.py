@@ -22,7 +22,7 @@ gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
 users_to_notify = ['383688364']
 #, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
-TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
+TOKEN = getenv('BOT_TOKEN')
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
 
