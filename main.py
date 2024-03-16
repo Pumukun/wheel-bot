@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+import random
 import asyncio
 import logging
 import sys
@@ -18,8 +18,11 @@ from markup import start_markup
 user_films: Dict[str, List[str]] = {}
 film_ratings: Dict[str, int] = {}
 user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
+gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
+users_to_notify = ['383688364','726099628']
 
 TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
+bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 
 dp = Dispatcher()
 
@@ -43,7 +46,7 @@ async def help(message: types.Message):
 *Доступные команды:*
 /add - добавить два фильма для голосования (разделите названия запятой)
 /vote - проголосовать за или против фильма (используйте формат: `/vote [название фильма],[за/против]`)
-/list - вывести список фильмов
+/film_list - вывести список фильмов
     """
     )
 
@@ -116,10 +119,21 @@ async def vote(message: types.Message):
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
 
+'''
 @dp.message(Command("list"))
 async def list(message: types.Message):
     films_list: str = "\n".join(film_ratings.keys())
     await message.answer(f'список добавленых фильмов:\n{films_list}')
+'''
+
+@dp.message(Command("film_list"))
+async def film_list(message: types.Message):
+    films = list(film_ratings.keys())
+
+    random.shuffle(films)
+    films_str: str = "\n".join(films)
+    await message.answer(f'Список добавленных фильмов в случайном порядке:\n{films_str}')
+
 
 @dp.message()
 async def reply(message: types.Message):
@@ -128,10 +142,20 @@ async def reply(message: types.Message):
     elif message.text == 'Голосование':
         await vote(message)
     elif message.text == 'Список':
-        await list(message)
+        await film_list(message)
+
+async def send_message_to_users():
+    for user_id in users_to_notify:
+        message = 'alarm! Да начнётся Колесо!'
+        try:
+            await bot.send_animation(user_id,gif_file)
+            await bot.send_message(user_id, message)
+            print(f"Сообщение отправлено пользователю с ID {user_id}")
+        except Exception as e:
+            print(f"Ошибка при отправке сообщения пользователю с ID {user_id}: {e}")
 
 async def main():
-    bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
+    await send_message_to_users()
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
