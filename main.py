@@ -100,19 +100,14 @@ async def vote(message: types.Message):
     if len(user_votes[user_name]) >= 4:
         await message.reply("Голоса кончились")
         return
-    # Подтверждение голоса
-    user_votes[user_name][film_name] = vote.lower()
-    # Проверяем количество голосов "за" и "против" пользователя
-    za_count = sum(1 for v in user_votes[user_name].values() if v == 'за')
-    protiv_count = sum(1 for v in user_votes[user_name].values() if v == 'против')
 
-    if za_count > 2 or protiv_count > 2:
-        await message.reply("Вы уже проголосовали максимальное количество раз.")
-        del user_votes[user_name][film_name]
-        return
+    #TODO нужно чтобы голосов "за" и "против" было не больше двух
+    if vote.lower() == 'за':
+        user_votes[user_name][film_name] = {'за': 1, 'против': 0}
+    else:
+        user_votes[user_name][film_name] = {'за':0, 'против': 1}
 
-    # Обновляем рейтинг фильма
-    current_score = film_ratings.get(film_name, 0)
+    current_score: int = film_ratings.get(film_name, 0)
     if vote.lower() == 'за':
         current_score += 1
     else:
@@ -122,9 +117,12 @@ async def vote(message: types.Message):
 
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
-
-    await message.reply('Ваш голос успешно засчитан')   
-
+'''
+@dp.message(Command("list"))
+async def list(message: types.Message):
+    films_list: str = "\n".join(film_ratings.keys())
+    await message.answer(f'список добавленых фильмов:\n{films_list}')
+'''
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
     films = list(film_ratings.keys())
