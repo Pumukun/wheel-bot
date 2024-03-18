@@ -89,9 +89,9 @@ async def vote(message: types.Message):
     if vote.lower() not in ['за','против']:
         await message.reply("Голос должен быть 'за' или 'против' ")
         return
-#    if film_name in user_films.get(user_name, []):
-#        await message.reply("За своё не голосуем")
-#        return
+    if film_name in user_films.get(user_name, []):
+        await message.reply("За своё не голосуем")
+        return
     if user_name not in user_votes:
         user_votes[user_name] = {}
     if film_name in user_votes[user_name]:
