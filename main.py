@@ -22,7 +22,7 @@ gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
 users_to_notify = ['383688364']
 #, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
-TOKEN = getenv('BOT_TOKEN')
+TOKEN = '6870699781:AAHLu0HKhuIw3-HAuq-zTcX9N6zXmz0UerY'
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
 
@@ -89,9 +89,9 @@ async def vote(message: types.Message):
     if vote.lower() not in ['за','против']:
         await message.reply("Голос должен быть 'за' или 'против' ")
         return
-    if film_name in user_films.get(user_name, []):
-        await message.reply("За своё не голосуем")
-        return
+#    if film_name in user_films.get(user_name, []):
+#        await message.reply("За своё не голосуем")
+#        return
     if user_name not in user_votes:
         user_votes[user_name] = {}
     if film_name in user_votes[user_name]:
@@ -100,14 +100,19 @@ async def vote(message: types.Message):
     if len(user_votes[user_name]) >= 4:
         await message.reply("Голоса кончились")
         return
+    # Подтверждение голоса
+    user_votes[user_name][film_name] = vote.lower()
+    # Проверяем количество голосов "за" и "против" пользователя
+    za_count = sum(1 for v in user_votes[user_name].values() if v == 'за')
+    protiv_count = sum(1 for v in user_votes[user_name].values() if v == 'против')
 
-    #TODO нужно чтобы голосов "за" и "против" было не больше двух
-    if vote.lower() == 'за':
-        user_votes[user_name][film_name] = {'за': 1, 'против': 0}
-    else:
-        user_votes[user_name][film_name] = {'за':0, 'против': 1}
+    if za_count > 2 or protiv_count > 2:
+        await message.reply("Вы уже проголосовали максимальное количество раз.")
+        del user_votes[user_name][film_name]
+        return
 
-    current_score: int = film_ratings.get(film_name, 0)
+    # Обновляем рейтинг фильма
+    current_score = film_ratings.get(film_name, 0)
     if vote.lower() == 'за':
         current_score += 1
     else:
@@ -117,12 +122,9 @@ async def vote(message: types.Message):
 
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
-'''
-@dp.message(Command("list"))
-async def list(message: types.Message):
-    films_list: str = "\n".join(film_ratings.keys())
-    await message.answer(f'список добавленых фильмов:\n{films_list}')
-'''
+
+    await message.reply('Ваш голос успешно засчитан')   
+
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
     films = list(film_ratings.keys())
