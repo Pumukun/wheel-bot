@@ -22,7 +22,7 @@ gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
 users_to_notify = ['383688364']
 #, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
-TOKEN = getenv('BOT_TOKEN')
+TOKEN: str | None = getenv('BOT_TOKEN')
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
 
@@ -125,7 +125,7 @@ async def list(message: types.Message):
 '''
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
-    films = list(film_ratings.keys())
+    films: List[str] = list(film_ratings.keys())
 
     random.shuffle(films)
     films_str: str = "\n".join(films)
