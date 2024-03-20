@@ -18,7 +18,7 @@ from markup import start_markup
 user_films: Dict[str, List[str]] = {}
 film_ratings: Dict[str, int] = {}
 user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
-gif_file = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
+gif_file: str = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
 users_to_notify = ['383688364']
 #, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
@@ -81,7 +81,7 @@ async def add(message: types.Message):
 async def vote(message: types.Message):
     if len(message.text.split(',')) != 2:
         await message.reply("Формат : /vote <название фильма>,<за/против>")
-    user_name = message.from_user.username or message.from_user.first_name
+    user_name: str = message.from_user.username or message.from_user.first_name
     film_name, vote = map(str.strip, message.text.replace('/vote ', '').split(','))
     if film_name not in film_ratings:
         await message.reply("Фильма нет или я гей и хуёво закодил")
@@ -117,12 +117,14 @@ async def vote(message: types.Message):
 
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
+
 '''
 @dp.message(Command("list"))
 async def list(message: types.Message):
     films_list: str = "\n".join(film_ratings.keys())
     await message.answer(f'список добавленых фильмов:\n{films_list}')
 '''
+
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
     films: List[str] = list(film_ratings.keys())
@@ -130,6 +132,7 @@ async def filmlist(message: types.Message):
     random.shuffle(films)
     films_str: str = "\n".join(films)
     await message.answer(f'Список добавленных фильмов в случайном порядке:\n{films_str}')
+
 @dp.message()
 async def reply(message: types.Message):
     if message.text == 'HEГP':
@@ -141,7 +144,7 @@ async def reply(message: types.Message):
 
 async def send_message_to_users():
     for user_id in users_to_notify:
-        message = 'alarm! Да начнётся Колесо!'
+        message: str = 'alarm! Да начнётся Колесо!'
         try:
             await bot.send_animation(user_id, gif_file)
             await bot.send_message(user_id, message)
