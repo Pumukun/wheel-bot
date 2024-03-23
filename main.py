@@ -15,14 +15,17 @@ from typing import List, Dict
 
 from markup import start_markup
 
-user_films: Dict[str, List[str]] = {}
+from user import User
+
+# Dict["id", User]
+users: Dict[int, User] = {}
 film_ratings: Dict[str, int] = {}
 user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
 gif_file: str = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
 users_to_notify = ['383688364']
 #, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
-TOKEN: str | None = getenv('BOT_TOKEN')
+TOKEN: str | None = getenv('TG_BOT_TOKEN')
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
 
@@ -55,14 +58,18 @@ async def add(message: types.Message):
         await message.reply("Пожалуйста, введите два названия фильмов, разделенных запятой.")
         return
 
+    user_id: int = message.from_user.id
     user_name: str = message.from_user.username or message.from_user.first_name
+
+    if user_id not in users:
+        users[user_id] = User(user_name, [], {}, user_id)
 
     film1, film2 = map(str.strip, message.text.replace('/add ', '').split(','))
     if film1 == film2:
         await message.reply("Фильмы должны быть разные")
         return
 
-    if user_name in user_films and len(user_films[user_name]) >= 2:
+    if user_id in users and len(users[user_id].get_films()) >= 2:
         await message.reply("Больше добавлять нельзя")
         return
 
@@ -73,9 +80,16 @@ async def add(message: types.Message):
         await message.reply(f'{film2}- повтор')
         return
 
-    user_films[user_name] = [film1, film2]
+    users[user_id].films = [film1, film2]
     await message.reply(f"Фильмы {film1} и {film2} добавлены для пользователя {user_name}.")
-    film_ratings.update({film1: 0, film2: 0})
+    film_ratings.update({
+        film1: 0,
+        film2: 0
+    })
+
+def print_films_score(film_ratings):
+    for film_name, score in film_ratings.items():
+        print(f"{film_name}: {score}")
 
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
@@ -86,12 +100,12 @@ async def vote(message: types.Message):
     if film_name not in film_ratings:
         await message.reply("Фильма нет или я гей и хуёво закодил")
         return
-    if vote.lower() not in ['за','против']:
+    if vote.lower() not in ['за','против', '+', '-']:
         await message.reply("Голос должен быть 'за' или 'против' ")
         return
-    if film_name in user_films.get(user_name, []):
-        await message.reply("За своё не голосуем")
-        return
+    #if film_name in user_films.get(user_name, []):
+    #    await message.reply("За своё не голосуем")
+    #    return
     if user_name not in user_votes:
         user_votes[user_name] = {}
     if film_name in user_votes[user_name]:
@@ -102,28 +116,28 @@ async def vote(message: types.Message):
         return
 
     #TODO нужно чтобы голосов "за" и "против" было не больше двух
-    if vote.lower() == 'за':
-        user_votes[user_name][film_name] = {'за': 1, 'против': 0}
-    else:
-        user_votes[user_name][film_name] = {'за':0, 'против': 1}
-
+    user_votes[user_name][film_name] = {'за': 0, 'против': 0}
+    za, protiv = int(user_votes[user_name][film_name]['за']), int(user_votes[user_name][film_name]['против'])
     current_score: int = film_ratings.get(film_name, 0)
-    if vote.lower() == 'за':
+    
+    if vote.lower() in ['за', '+'] and za <= 2:
         current_score += 1
-    else:
+        film_ratings[film_name] = current_score
+        
+        za += 1
+        user_votes[user_name][film_name] = {'за': za, 'против': protiv}
+        print_films_score(film_ratings)
+        await message.reply(f"Вы проголосовали за {film_name}")
+
+    if vote.lower() in ['против', '-'] and protiv <= 2:
         current_score -= 1
+        film_ratings[film_name] = current_score
 
-    film_ratings[film_name] = current_score
+        protiv += 1
+        user_votes[user_name][film_name] = {'за': za, 'против': protiv}
+        print_films_score(film_ratings)
+        await message.reply(f"Вы проголосовали против {film_name}")
 
-    for film_name, score in film_ratings.items():
-        print(f"{film_name}: {score}")
-
-'''
-@dp.message(Command("list"))
-async def list(message: types.Message):
-    films_list: str = "\n".join(film_ratings.keys())
-    await message.answer(f'список добавленых фильмов:\n{films_list}')
-'''
 
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
