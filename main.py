@@ -62,7 +62,7 @@ async def add(message: types.Message):
     user_name: str = message.from_user.username or message.from_user.first_name
 
     if user_id not in users:
-        users[user_id] = User(user_name, [], {}, user_id)
+        users[user_id] = User(user_name, [], user_id)
 
     film1, film2 = map(str.strip, message.text.replace('/add ', '').split(','))
     if film1 == film2:
@@ -91,61 +91,97 @@ def print_films_score(film_ratings):
     for film_name, score in film_ratings.items():
         print(f"{film_name}: {score}")
 
+
+def parse_votes(msg: str) -> Dict[str, str]:
+    msg = msg.text
+    msg = msg.replace('/vote ', '')
+    # f1: +, f2: за, f4: -
+    msg = msg.replace(' ', '')
+    print(msg)
+    return dict(map(lambda x: x.split(':'), msg.split(',')))
+
+
+def shuffle_list(user_id: int) -> Dict[int, str]:
+    ind: int = 1
+    for f in film_ratings:
+        users[user_id].shuffled_films[ind] = f
+        ind += 1
+    sh_list = list(users[user_id].get_shuffled_films().items())
+    random.shuffle(sh_list)
+    users[user_id].shuffled_films = dict(sorted(sh_list, key=lambda x: x[0]))
+    return dict(sorted(sh_list, key=lambda x: x[0]))
+
+
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
-    if len(message.text.split(',')) != 2:
-        await message.reply("Формат : /vote <название фильма>,<за/против>")
-    user_name: str = message.from_user.username or message.from_user.first_name
-    film_name, vote = map(str.strip, message.text.replace('/vote ', '').split(','))
-    if film_name not in film_ratings:
-        await message.reply("Фильма нет или я гей и хуёво закодил")
-        return
-    if vote.lower() not in ['за','против', '+', '-']:
-        await message.reply("Голос должен быть 'за' или 'против' ")
-        return
-    #if film_name in user_films.get(user_name, []):
-    #    await message.reply("За своё не голосуем")
-    #    return
-    if user_name not in user_votes:
-        user_votes[user_name] = {}
-    if film_name in user_votes[user_name]:
-        await message.reply('Уже голосовал за это')
-        return
-    if len(user_votes[user_name]) >= 4:
-        await message.reply("Голоса кончились")
-        return
-
-    #TODO нужно чтобы голосов "за" и "против" было не больше двух
-    user_votes[user_name][film_name] = {'за': 0, 'против': 0}
-    za, protiv = int(user_votes[user_name][film_name]['за']), int(user_votes[user_name][film_name]['против'])
-    current_score: int = film_ratings.get(film_name, 0)
+    #if len(message.text.split(':')) != 2:
+    #    await message.reply("Формат : /vote <название фильма>: <за/против>, <название фильма>: <за/против>, ...")
     
-    if vote.lower() in ['за', '+'] and za <= 2:
-        current_score += 1
-        film_ratings[film_name] = current_score
+    user_id = message.from_user.id
+    if user_id not in users:
+        await message.reply("Вы ещё не добавляли ни одного фильма")
+        return
+
+    parsed_votes: Dict[str, str] = parse_votes(message)
+    
+    user_sh_films: Dict[int, str] = users[user_id].get_shuffled_films()
+    if user_sh_films == {}:
+        user_sh_films = shuffle_list(user_id)
+        users[user_id].shuffled_films = user_sh_films
+
+    
+    buffer: str = ""
+    for film_name, vote in parsed_votes.items():
+        if film_name.isdigit():
+            film_name = user_sh_films[int(film_name)]
+            print(film_name)
         
-        za += 1
-        user_votes[user_name][film_name] = {'за': za, 'против': protiv}
-        print_films_score(film_ratings)
-        await message.reply(f"Вы проголосовали за {film_name}")
+        if film_name not in film_ratings and int(film_name) not in user_sh_films:
+            await message.reply("Фильма нет или я гей и хуёво закодил")
+            return
+        if vote.lower() not in ['за','против', '+', '-']:
+            print(vote.lower(), film_name)
+            await message.reply("Голос должен быть 'за' / 'против' или '+' / '-'")
+            return
+        if film_name in users[user_id].get_films():
+            await message.reply("За своё не голосуем")
+            return
 
-    if vote.lower() in ['против', '-'] and protiv <= 2:
-        current_score -= 1
-        film_ratings[film_name] = current_score
+        if vote.lower() in ['за', '+']:
+            if (users[user_id].get_votes_for() >= 2):
+                await message.reply("Нельзя больше 2 голосов 'за'")
+                return
+            film_ratings[film_name] += 1
+            users[user_id].votes_for += 1
+        else:
+            if (users[user_id].get_votes_against() >= 2):
+                await message.reply("Нельзя больше 2 голосов 'против'")
+                return
+            film_ratings[film_name] -= 1
+            users[user_id].votes_against += 1
 
-        protiv += 1
-        user_votes[user_name][film_name] = {'за': za, 'против': protiv}
-        print_films_score(film_ratings)
-        await message.reply(f"Вы проголосовали против {film_name}")
+        buffer += f"Ваш голос '{vote}' для фильма '{film_name}' принят\n"
+
+        print(film_ratings.items())
+
+    await message.reply(buffer)
 
 
 @dp.message(Command("filmlist"))
 async def filmlist(message: types.Message):
-    films: List[str] = list(film_ratings.keys())
+    user_id: int = message.from_user.id
 
-    random.shuffle(films)
-    films_str: str = "\n".join(films)
-    await message.answer(f'Список добавленных фильмов в случайном порядке:\n{films_str}')
+    if user_id not in users:
+        await message.reply("Вы ещё не добавляли ни одного фильма")
+        return
+        
+    sh_list: Dict[int, str] = shuffle_list(user_id)
+    print(sh_list)
+    
+    buffer: str = ""
+    for index, film in users[user_id].get_shuffled_films().items():
+        buffer += f"{index}. {film}\n"
+    await message.answer(f'Список добавленных фильмов в случайном порядке:\n{buffer}')
 
 @dp.message()
 async def reply(message: types.Message):
