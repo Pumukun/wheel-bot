@@ -100,17 +100,18 @@ def parse_votes(msg: str) -> Dict[str, str]:
     print(msg)
     return dict(map(lambda x: x.split(':'), msg.split(',')))
 
-
 def shuffle_list(user_id: int) -> Dict[int, str]:
     ind: int = 1
-    for f in film_ratings:
+    temp_film_ratings = list(film_ratings.keys())
+    random.shuffle(temp_film_ratings)
+    print(temp_film_ratings)
+    for f in temp_film_ratings:
         users[user_id].shuffled_films[ind] = f
         ind += 1
     sh_list = list(users[user_id].get_shuffled_films().items())
     random.shuffle(sh_list)
+    print(sh_list)
     users[user_id].shuffled_films = dict(sorted(sh_list, key=lambda x: x[0]))
-    return dict(sorted(sh_list, key=lambda x: x[0]))
-
 
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
