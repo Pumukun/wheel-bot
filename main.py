@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-
+import os
 import random
 import asyncio
 import logging
 import sys
 from os import getenv
+from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
@@ -22,13 +23,12 @@ users: Dict[int, User] = {}
 film_ratings: Dict[str, int] = {}
 user_votes: Dict[str, Dict[str, Dict[str, int]]] = {}
 gif_file: str = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'
-users_to_notify = ['383688364']
-#, '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
+users_to_notify = ['383688364', '726099628', '405212645', '897485892', '653482793', '527456671', '801068651']
 
-TOKEN: str | None = getenv('TG_BOT_TOKEN')
+load_dotenv()
+TOKEN: str | None = os.getenv("MY_TOKEN")
 bot = Bot(TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
-
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
@@ -206,7 +206,8 @@ async def send_message_to_users():
 
 async def main():
     await send_message_to_users()
-    await dp.start_polling(bot)
+    await bot.get_updates(offset=-1)
+    await dp.start_polling(bot,skip_updates=True)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
