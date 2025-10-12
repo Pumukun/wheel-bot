@@ -11,10 +11,12 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
+# Убираем hbold, так как широкий шрифт не нужен
+# from aiogram.utils.markdown import hbold
 from typing import List, Dict, Tuple
 
-from markup import start_markup
-from user import User
+from markup import start_markup  # Убедитесь, что этот файл существует и функция определена
+from user import User  # Убедитесь, что этот файл существует и класс User определен
 
 # --- Глобальные переменные ---
 users: Dict[int, User] = {}
@@ -23,7 +25,7 @@ film_ratings: Dict[str, int] = {}
 gif_file: str = r'https://i.postimg.cc/kgppKXB3/sex-alarm.gif'  # URL вашей GIF
 users_to_notify = ['383688364', '726099628', '405212645', '897485892', '653482793', '527456671',
                    '801068651', '1996813077']
-ADMIN_USER_ID = 383688364
+ADMIN_USER_ID = 383688364  # ID администратора
 
 fallback_shuffled_films_cache: Dict[int, str] = {}
 fallback_cache_is_fresh: bool = False
@@ -58,41 +60,30 @@ def _generate_fibonacci_up_to(limit_count: int) -> List[int]:
         current_a, current_b = current_b, next_fib
     return fibs
 
+
 def _calculate_and_format_results_logic() -> str:
-    if not film_ratings:
-        return "Нет фильмов для подсчета."
-
+    if not film_ratings: return "Нет фильмов для подсчета."
     sorted_films_by_score_display = sorted(film_ratings.items(), key=lambda item: item[1], reverse=True)
-    if not sorted_films_by_score_display:
-        return "Нет фильмов после сортировки."
-
-    all_scores = list(film_ratings.values())
-    if not all_scores:
-        return "Нет данных для подсчета."
-
-    min_score = min(all_scores)
-    max_score = max(all_scores)
-
-    if min_score == max_score:
-        score_to_assigned_points = {min_score: 1}
+    if not sorted_films_by_score_display: return "Нет фильмов после сортировки."
+    unique_scores_asc = sorted(list(set(score for _, score in sorted_films_by_score_display)))
+    points_sequence = _generate_fibonacci_up_to(len(unique_scores_asc))
+    score_to_assigned_points = {}
+    if not points_sequence and unique_scores_asc:
+        for score_tier in unique_scores_asc: score_to_assigned_points[score_tier] = 1
     else:
-        points_count = max_score - min_score + 1
-        
-        fib_points_sequence = _generate_fibonacci_up_to(points_count)
-
-        score_to_assigned_points = {}
-        current_score_tier = min_score
-        for i in range(points_count):
-            point_value = fib_points_sequence[i] if i < len(fib_points_sequence) else (fib_points_sequence[-1] if fib_points_sequence else 1)
-            score_to_assigned_points[current_score_tier] = point_value
-            current_score_tier += 1
+        for i, score_tier in enumerate(unique_scores_asc):
+            if i < len(points_sequence):
+                score_to_assigned_points[score_tier] = points_sequence[i]
+            else:
+                score_to_assigned_points[score_tier] = points_sequence[-1] if points_sequence else 1
 
     result_lines = ["Итоги Голосования:"]
     for film_name, score in sorted_films_by_score_display:
-        assigned_points = score_to_assigned_points.get(score, 1)  # Используем 1 как запасной вариант
+        assigned_points = score_to_assigned_points.get(score, 1)
         result_lines.append(f"• \"{film_name}\": Голоса: {score}, Очки: {assigned_points}")
 
     return "\n".join(result_lines) if len(result_lines) > 1 else "Не удалось сформировать результаты."
+
 
 def get_or_create_fallback_shuffled_list() -> Dict[int, str]:
     global fallback_shuffled_films_cache, fallback_cache_is_fresh
