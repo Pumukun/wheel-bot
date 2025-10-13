@@ -29,6 +29,7 @@ fallback_shuffled_films_cache: Dict[int, str] = {}
 fallback_cache_is_fresh: bool = False
 
 final_results_calculated: bool = False
+is_voting: bool = False
 cached_results_string: str = ""
 
 load_dotenv()
@@ -268,10 +269,11 @@ async def filmlist(message: types.Message):
 async def vote(message: types.Message):
     global final_results_calculated, cached_results_string
     if final_results_calculated:
-        # Если голосование завершено, результаты через /vote не показываем,
-        # т.к. они могли быть объявлены только админу.
-        # Пользователь может использовать /results для просмотра (если доступ есть).
         await message.reply("Голосование уже завершено. Для просмотра итогов используйте /results.")
+        return
+    
+    if is_voting == false:
+        await.message.reply("Голосовалка ещё не начилась")
         return
 
     user_id = message.from_user.id
@@ -439,6 +441,13 @@ async def display_results(message: types.Message):
             await message.answer(
                 f"Голосование еще не завершено. (Всего голосов: {current_total_user_vote_actions}, Нужно: {2 * num_films} для завершения).\n\nПредварительные результаты:\n{current_results_display_string}")
 
+@dp.message(Command("vote_start"))
+aysnc def start_voting_admin(message.types.Message):
+    user_id = message.from_user.id
+    if user_id != ADMIN_USER_ID:
+        await message.reply("У вас нет прав, да и откуда ты знаешь команду")
+        return
+    is_voting = True
 
 @dp.message(Command("end"))
 async def end_voting_admin(message: types.Message):
