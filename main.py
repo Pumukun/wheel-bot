@@ -161,6 +161,7 @@ async def start(message: types.Message):
 /vote фильм_ID_или_название: +/- - проголосовать (можно несколько через запятую)
 /filmlist - вывести список фильмов для голосования
 /results - показать итоги голосования
+/reset - сбросить свои голоса
 /end - (только для администратора) завершить голосование и подвести итоги
         """,
         reply_markup=start_markup()
@@ -264,6 +265,26 @@ async def filmlist(message: types.Message):
         buffer += f"{index}. {film_name}\n"
     await message.answer(buffer)
 
+@dp.message(Command("reset"))
+async def reset_votes(message: types.Message):
+    user_id = message.from_user.id
+
+    if user_id not in users[user_id].get_voted_on():
+        await.message.reply("Вы ещё не голосовали, сбрасывать нечего")
+        return
+
+    user_instance = users[user_id]
+
+    for film_name, vote_type in user_instance.get_voted_on().items():
+        if film_name in film_ratings:
+            if vote_type == 'за':
+                film_ratings[film_name] -= 1
+            elif vote_type == 'против':
+                film_ratings[film_name] += 1
+
+    user_instance.reset_votes()
+    logging.info(f"User {message.from_user.username} (ID: {user_id}) has reset their votes.")
+    await message.reply("Ваши голоса были сброшены. Теперь вы можете проголосовать заново.")
 
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
@@ -272,8 +293,8 @@ async def vote(message: types.Message):
         await message.reply("Голосование уже завершено. Для просмотра итогов используйте /results.")
         return
     
-    if is_voting == false:
-        await.message.reply("Голосовалка ещё не начилась")
+    if not is_voting:
+        await message.reply("Голосование ещё не началось.")
         return
 
     user_id = message.from_user.id
@@ -294,76 +315,79 @@ async def vote(message: types.Message):
         await message.reply("Нет фильмов для голосования. Дождитесь, пока кто-нибудь добавит их.")
         return
 
-    film_map_for_voting: Dict[int, str]
-    if user_instance.get_films():
-        user_instance.ensure_shuffled_list_exists(all_current_film_names)
-        film_map_for_voting = user_instance.get_shuffled_films()
-    else:
-        film_map_for_voting = get_or_create_fallback_shuffled_list()
+    user_instance.ensure_shuffled_list_exists(all_current_film_names)
+    film_map_for_voting = user_instance.get_shuffled_films()
 
     if not film_map_for_voting and all_current_film_names:
-        logging.error(
-            f"Film map for voting for user {user_id} is empty, but global films exist. User added films: {bool(user_instance.get_films())}")
+        logging.error(f"Film map for voting for user {user_id} is empty, but global films exist.")
         await message.reply(
-            "Ошибка: не удалось получить список фильмов для голосования. Попробуйте /filmlist, затем /vote. Если проблема сохранится, сообщите администратору.")
+            "Ошибка: не удалось получить список фильмов для голосования. Попробуйте /filmlist, затем /vote.")
         return
 
-    reply_buffer: str = ""
+    reply_buffer = ""
     successful_votes_in_this_message = 0
     log_film_scores_changed = False
 
     for film_identifier, vote_action_str in parsed_votes.items():
-        actual_film_name = ""
-        if film_identifier.isdigit():
-            film_id_to_check = int(film_identifier)
-            if film_id_to_check in film_map_for_voting:
-                actual_film_name = film_map_for_voting[film_id_to_check]
-            else:
-                reply_buffer += f"⚠️ Фильм с ID {film_id_to_check} не найден в вашем текущем списке (/filmlist).\n"
-                continue
-        else:
-            actual_film_name = film_identifier.strip()
-            if actual_film_name not in film_ratings:
-                reply_buffer += f"⚠️ Фильм \"{actual_film_name}\" не найден. Попробуйте использовать ID из /filmlist.\n"
-                continue
-
-        if actual_film_name not in film_ratings:
-            reply_buffer += f"⚠️ Фильм \"{actual_film_name}\" не найден в общем списке.\n"
-            continue
-
-        vote_action_str_lower = vote_action_str.lower()
-        if vote_action_str_lower not in ['за', 'против', '+', '-']:
-            reply_buffer += f"⚠️ Для \"{actual_film_name}\": Голос '{vote_action_str}' не распознан. Используйте 'за'/'против' или '+/-'.\n"
+        actual_film_name = film_map_for_voting.get(int(film_identifier)) if film_identifier.isdigit() else None
+        
+        if not actual_film_name:
+            reply_buffer += f"⚠️ Фильм с ID {film_identifier} не найден в вашем списке.\n"
             continue
 
         if actual_film_name in user_instance.get_films():
             reply_buffer += f"🚫 За свой фильм ('{actual_film_name}') голосовать нельзя.\n"
             continue
 
-        initial_score = film_ratings.get(actual_film_name, 0)
-
+        vote_action_str_lower = vote_action_str.lower()
         if vote_action_str_lower in ['за', '+']:
+            if user_instance.has_voted_against(actual_film_name):
+                reply_buffer += f"🚫 Вы уже голосовали 'против' \"{actual_film_name}\".\n"
+                continue
+            if user_instance.has_voted_for(actual_film_name):
+                 reply_buffer += f"ℹ️ Вы уже голосовали 'за' \"{actual_film_name}\".\n"
+                 continue
             if user_instance.get_votes_for() >= 2:
-                reply_buffer += f"✋ Макс. голосов 'за' (2) достигнут. Голос за \"{actual_film_name}\" не учтен.\n"
+                reply_buffer += f"✋ Достигнут лимит голосов 'за' (2).\n"
                 continue
+            
+            initial_score = film_ratings.get(actual_film_name, 0)
             film_ratings[actual_film_name] += 1
-            user_instance.votes_for += 1
+            user_instance.add_vote_for(actual_film_name)
+            
             successful_votes_in_this_message += 1
-            reply_buffer += f"👍 Ваш голос 'ЗА' фильм \"{actual_film_name}\" принят.\n"
-            logging.info(
-                f"VOTE UP: User {user_name} (ID: {user_id}) voted FOR '{actual_film_name}'. Score change: {initial_score} -> {film_ratings[actual_film_name]}.")
             log_film_scores_changed = True
+            reply_buffer += f"👍 Ваш голос 'ЗА' \"{actual_film_name}\" принят.\n"
+            logging.info(
+                f"VOTE UP: User {user_name} (ID: {user_id}) voted FOR '{actual_film_name}'. "
+                f"Score change: {initial_score} -> {film_ratings[actual_film_name]}."
+            )
+
         elif vote_action_str_lower in ['против', '-']:
-            if user_instance.get_votes_against() >= 2:
-                reply_buffer += f"✋ Макс. голосов 'против' (2) достигнут. Голос против \"{actual_film_name}\" не учтен.\n"
+            if user_instance.has_voted_for(actual_film_name):
+                reply_buffer += f"🚫 Вы уже голосовали 'за' \"{actual_film_name}\".\n"
                 continue
+            if user_instance.has_voted_against(actual_film_name):
+                 reply_buffer += f"ℹ️ Вы уже голосовали 'против' \"{actual_film_name}\".\n"
+                 continue
+            if user_instance.get_votes_against() >= 2:
+                reply_buffer += f"✋ Достигнут лимит голосов 'против' (2).\n"
+                continue
+
+            initial_score = film_ratings.get(actual_film_name, 0)
             film_ratings[actual_film_name] -= 1
-            user_instance.votes_against += 1
+            user_instance.add_vote_against(actual_film_name)
+
             successful_votes_in_this_message += 1
-            reply_buffer += f"👎 Ваш голос 'ПРОТИВ' фильма \"{actual_film_name}\" принят.\n"
-            logging.info(
-                f"VOTE DOWN: User {user_name} (ID: {user_id}) voted AGAINST '{actual_film_name}'. Score change: {initial_score} -> {film_ratings[actual_film_name]}.")
             log_film_scores_changed = True
+            reply_buffer += f"👎 Ваш голос 'ПРОТИВ' \"{actual_film_name}\" принят.\n"
+            logging.info(
+                f"VOTE DOWN: User {user_name} (ID: {user_id}) voted AGAINST '{actual_film_name}'. "
+                f"Score change: {initial_score} -> {film_ratings[actual_film_name]}."
+            )
+        
+        else:
+             reply_buffer += f"⚠️ Для \"{actual_film_name}\": неизвестный голос '{vote_action_str}'.\n"
 
     if reply_buffer:
         await message.reply(reply_buffer)
@@ -378,7 +402,9 @@ async def vote(message: types.Message):
         current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in users.values())
         num_films = len(film_ratings)
         logging.info(
-            f"Total votes cast: {current_total_user_vote_actions}, Num films: {num_films}. Votes needed: {2 * num_films if num_films > 0 else 'N/A'}")
+            f"Total votes cast: {current_total_user_vote_actions}, "
+            f"Num films: {num_films}. Votes needed: {2 * num_films if num_films > 0 else 'N/A'}"
+        )
 
         if num_films > 0 and current_total_user_vote_actions >= 2 * num_films:
             logging.info("Vote tally condition met. Calculating final results FOR ADMIN ONLY.")
@@ -389,11 +415,11 @@ async def vote(message: types.Message):
             try:
                 await bot.send_message(ADMIN_USER_ID, results_message_for_admin)
                 logging.info(f"Automatic voting ended. Results sent to ADMIN_USER_ID {ADMIN_USER_ID}.")
-                if user_id != ADMIN_USER_ID:  # Сообщение пользователю, чей голос завершил голосование
+                
+                if user_id != ADMIN_USER_ID:
                     await message.answer(
-                        "Ваш голос был решающим! Голосование завершено. Итоги объявлены администратором.")
-                # Если админ сам завершил голосование своим голосом, он получит итоги выше.
-                # Дополнительно можно отправить ему подтверждение, что его голос завершил, но это уже есть в `results_message_for_admin`
+                        "Ваш голос был решающим! Голосование завершено. Итоги объявлены администратором."
+                    )
             except Exception as e:
                 logging.error(f"Error sending results to ADMIN_USER_ID {ADMIN_USER_ID} after automatic end: {e}")
 
