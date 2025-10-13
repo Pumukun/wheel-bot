@@ -269,8 +269,8 @@ async def filmlist(message: types.Message):
 async def reset_votes(message: types.Message):
     user_id = message.from_user.id
 
-    if user_id not in users[user_id].get_voted_on():
-        await.message.reply("Вы ещё не голосовали, сбрасывать нечего")
+    if not users.get(user_id) or not users[user_id].get_voted_on():
+        await message.answer("Вы ещё не голосовали, сбрасывать нечего")
         return
 
     user_instance = users[user_id]
@@ -288,11 +288,11 @@ async def reset_votes(message: types.Message):
 
 @dp.message(Command("vote"))
 async def vote(message: types.Message):
-    global final_results_calculated, cached_results_string
+    global final_results_calculated, cached_results_string, is_voting
+
     if final_results_calculated:
         await message.reply("Голосование уже завершено. Для просмотра итогов используйте /results.")
         return
-    
     if not is_voting:
         await message.reply("Голосование ещё не началось.")
         return
@@ -451,7 +451,7 @@ async def display_results(message: types.Message):
             cached_results_string = current_results_display_string  # Он уже посчитан
             final_results_calculated = True
 
-            # Сообщаем запросившему пользователю
+    # Сообщаем запросившему пользователю
             await message.answer(f"ГОЛОСОВАНИЕ ЗАВЕРШЕНО (по итогам /results)!\n\n{cached_results_string}")
 
             # Также отправляем сообщение администратору, если это не он запросил /results
@@ -467,9 +467,11 @@ async def display_results(message: types.Message):
             await message.answer(
                 f"Голосование еще не завершено. (Всего голосов: {current_total_user_vote_actions}, Нужно: {2 * num_films} для завершения).\n\nПредварительные результаты:\n{current_results_display_string}")
 
-@dp.message(Command("vote_start"))
-aysnc def start_voting_admin(message.types.Message):
+@dp.message(Command("votestart"))
+async def start_voting_admin(message: types.Message):
     user_id = message.from_user.id
+    global is_voting
+    
     if user_id != ADMIN_USER_ID:
         await message.reply("У вас нет прав, да и откуда ты знаешь команду")
         return

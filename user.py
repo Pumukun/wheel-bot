@@ -44,7 +44,7 @@ class User():
     def get_voted_on(self) -> Dict[str, str]:
         return self.voted_on
 
-    def add_vote_on(self, film_name: str):
+    def add_vote_for(self, film_name: str):
         self.voted_on[film_name] = 'за'
         self.votes_for += 1
 
@@ -55,14 +55,14 @@ class User():
     def has_voted_for(self, film_name: str) -> bool:
         return self.voted_on.get(film_name) == 'за'
 
-    def has_voted_agains(self, film_name: str) -> bool:
+    def has_voted_against(self, film_name: str) -> bool:
         return self.voted_on.get(film_name) == 'против'
 
     def reset_votes(self):
         self.votes_for = 0 
         self.votes_against = 0 
         self.voted_on.clear()
-        logging.info(f"Votes for user {self.user_id} ({self.name}) have been reset.")
+        logging.info(f"Votes for user {self.id} ({self.name}) have been reset.")
 
 
     def ensure_shuffled_list_exists(self, current_global_film_names: List[str]):
