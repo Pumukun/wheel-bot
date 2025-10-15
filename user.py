@@ -59,11 +59,11 @@ class User():
         return self.voted_on.get(film_name) == 'против'
 
     def reset_votes(self):
-        self.votes_for = 0 
-        self.votes_against = 0 
+        logging.info(f"Resetting votes for user {self.id}. Old state: voted_on={self.voted_on}")
+        self.votes_for = 0
+        self.votes_against = 0
         self.voted_on.clear()
-        logging.info(f"Votes for user {self.id} ({self.name}) have been reset.")
-
+        logging.info(f"Votes for user {self.id} reset. New state: voted_on={self.voted_on}")
 
     def ensure_shuffled_list_exists(self, current_global_film_names: List[str]):
         current_signature = tuple(sorted(current_global_film_names))
