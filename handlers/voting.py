@@ -127,10 +127,10 @@ async def vote(message: types.Message):
     """
     Обрабатывает голоса пользователей с подробным логированием для отладки.
     """
-    if state.final_results_calculated:
+    if state.current_status == state.VotingStatus.FINISHED:
         await message.reply("Голосование уже завершено. Для просмотра итогов используйте /results.")
         return
-    if not state.is_voting:
+    if state.current_status == state.VotingStatus.NOT_STARTED:
         await message.reply("Голосование ещё не началось.")
         return
 
@@ -276,14 +276,14 @@ async def display_results(message: types.Message):
 
     current_results_display_string = calculate_and_format_results()
 
-    if state.final_results_calculated:
+    if state.VotingStatus.FINISHED:
         await message.answer(f"Итоги Голосования (завершено):\n{state.cached_results_string}")
     else:
         current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in state.users.values())
         if num_films > 0 and current_total_user_vote_actions >= 2 * num_films:
             logging.info("Results condition met on /results command. Finalizing results.")
             state.cached_results_string = current_results_display_string
-            state.final_results_calculated = True
+            state.current_status = state.VotingStatus.FINISHED
             await message.answer(f"ГОЛОСОВАНИЕ ЗАВЕРШЕНО (по итогам /results)!\n\n{state.cached_results_string}")
             if message.from_user.id != ADMIN_USER_ID:
                 try:

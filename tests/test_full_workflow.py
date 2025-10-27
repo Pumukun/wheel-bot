@@ -24,8 +24,7 @@ def clear_bot_state():
     logger.debug("--- [STATE_RESET] Вызвана функция очистки состояния... ---")
     state.users.clear()
     state.film_ratings.clear()
-    state.final_results_calculated = False
-    state.is_voting = False
+    state.current_status = state.VotingStatus.NOT_STARTED
     state.cached_results_string = ""
     state.fallback_cache_is_fresh = False
     state.fallback_shuffled_films_cache.clear()
@@ -150,8 +149,8 @@ async def test_complete_bot_workflow():
     msg_start_voting = MockMessage(from_user=admin_user, text="/votestart")
     await start_voting_admin(msg_start_voting)
     assert "Голосование начато!" in msg_start_voting.reply_text
-    assert state.is_voting is True
-    logger.debug(f"Состояние изменено: state.is_voting = {state.is_voting}")
+    assert state.current_status is state.VotingStatus.IN_PROGRESS
+    logger.debug(f"Состояние изменено: state.is_voting = {state.current_status}")
     logger.info("ПРОВЕРКА ПРОЙДЕНА: Голосование успешно запущено.")
     logger.info("ЭТАП 4 ЗАВЕРШЕН.")
 

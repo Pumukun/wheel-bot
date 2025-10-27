@@ -18,12 +18,12 @@ router = Router()
 async def start_voting_admin(message: types.Message):
     # TODO [UX]: После старта голосования стоит отправить уведомление всем участникам,
     # которые добавляли фильмы, чтобы они знали о начале.
-    state.is_voting = True
+    state.current_status = state.VotingStatus.IN_PROGRESS
     await message.reply("Голосование начато!")
 
 @router.message(Command("end"), IsAdmin())
 async def end_voting_admin(message: types.Message):
-    if state.final_results_calculated:
+    if state.current_status == state.VotingStatus.FINISHED:
         await message.reply(f"Голосование уже было завершено.\n{state.cached_results_string}")
         return
 
@@ -33,7 +33,7 @@ async def end_voting_admin(message: types.Message):
 
     logging.info(f"Admin (ID: {message.from_user.id}) initiated /end command.")
     state.cached_results_string = calculate_and_format_results()
-    state.final_results_calculated = True
+    state.current_status = state.VotingStatus.FINISHED
     
     results_broadcast_message = f"ГОЛОСОВАНИЕ ПРИНУДИТЕЛЬНО ЗАВЕРШЕНО АДМИНИСТРАТОРОМ!\n\n{state.cached_results_string}"
     
