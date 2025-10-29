@@ -1,12 +1,19 @@
 # handlers/voting.py
 import logging
-from aiogram import Router, F, types
+from aiogram import Router, F, types, Bot
 from aiogram.filters import Command
+from aiogram.types import CallbackQuery
 
 from user import User
 import state
 from services.logic import parse_votes, get_or_create_fallback_shuffled_list, calculate_and_format_results
 from config import ADMIN_USER_ID
+from keyboards.inline import (
+    create_pagination_keyboard,
+    VotePagingCallback,
+    NavigatePagingCallback,
+    DUMMY_CALLBACK
+)
 
 router = Router()
 
@@ -295,3 +302,156 @@ async def display_results(message: types.Message):
             await message.answer(
                 f"Голосование еще не завершено. (Всего голосов: {current_total_user_vote_actions}, Нужно: {2 * num_films} для завершения).\n\n"
                 f"Предварительные результаты:\n{current_results_display_string}")
+
+@router.message(Command("pagelist"))
+async def pagelist(message: types.Message):
+    """
+    Отправляет первую страницу списка голосования с пагинацией.
+    """
+    user_id = message.from_user.id
+    user_name = message.from_user.username or message.from_user.first_name
+    
+    if user_id not in state.users:
+        state.users[user_id] = User(user_name, [], user_id)
+    
+    user_instance = state.users[user_id]
+    all_current_film_names = list(state.film_ratings.keys())
+
+    if not all_current_film_names:
+        await message.answer("Список фильмов пока пуст. Добавьте фильмы командой /add.")
+        return
+
+    message_text, keyboard = create_pagination_keyboard(
+        user_instance, all_current_film_names, page=0
+    )
+    
+    if keyboard:
+        await message.answer(message_text, reply_markup=keyboard)
+    else:
+        await message.answer(message_text)
+
+@router.callback_query(NavigatePagingCallback.filter())
+async def handle_page_navigation(query: CallbackQuery, callback_data: NavigatePagingCallback):
+    """
+    (НОВЫЙ ХЭНДЛЕР)
+    Обрабатывает нажатия кнопок "Назад" и "Вперед".
+    """
+    page = callback_data.page
+    
+    user_id = query.from_user.id
+    if user_id not in state.users:
+        await query.answer("Произошла ошибка. Пожалуйста, введите /pagelist заново.", show_alert=True)
+        return
+
+    user_instance = state.users[user_id]
+    all_current_film_names = list(state.film_ratings.keys())
+
+    message_text, keyboard = create_pagination_keyboard(
+        user_instance, all_current_film_names, page=page
+    )
+
+    try:
+        await query.message.edit_text(message_text, reply_markup=keyboard)
+        await query.answer(f"Переход на страницу {page + 1}")
+    except Exception as e:
+        logging.warning(f"Ошибка при обновлении пагинации: {e}")
+        await query.answer("Не удалось обновить список.")
+
+@router.callback_query(VotePagingCallback.filter())
+async def handle_page_vote(query: CallbackQuery, callback_data: VotePagingCallback, bot: Bot):
+    """
+    (НОВЫЙ ХЭНДЛЕР)
+    Обрабатывает нажатия кнопок 👎 и 👍 из пагинации.
+    """
+    if state.current_status == state.VotingStatus.FINISHED:
+        await query.answer("Голосование уже завершено.", show_alert=True)
+        return
+    if state.current_status == state.VotingStatus.NOT_STARTED:
+        await query.answer("Голосование ещё не началось.", show_alert=True)
+        return
+
+    user_id = query.from_user.id
+    user_name = query.from_user.username or query.from_user.first_name
+    
+    film_id = callback_data.film_id
+    action = callback_data.action
+
+    if user_id not in state.users:
+        state.users[user_id] = User(user_name, [], user_id)
+    
+    user_instance = state.users[user_id]
+
+    user_instance.ensure_shuffled_list_exists(list(state.film_ratings.keys()))
+    film_name = user_instance.get_shuffled_films().get(film_id)
+    
+    if not film_name:
+        await query.answer("Ошибка: фильм не найден. Попробуйте обновить /pagelist", show_alert=True)
+        return
+
+    logging.info(f"[VOTE_PAGING] User '{user_name}' ({user_id}) processing vote: '{action}' for film_id {film_id} ('{film_name}')")
+    
+    response_text = ""
+    log_film_scores_changed = False
+
+    if film_name in user_instance.get_films():
+        response_text = "🚫 За свой фильм голосовать нельзя."
+        await query.answer(response_text, show_alert=True)
+        return
+
+    if action == 'for':
+        if user_instance.has_voted_against(film_name):
+            response_text = f"🚫 Вы уже голосовали 'против' \"{film_name}\"."
+        elif user_instance.has_voted_for(film_name):
+            response_text = f"ℹ️ Вы уже голосовали 'за' \"{film_name}\"."
+        elif user_instance.get_votes_for() >= 2:
+            response_text = "✋ Достигнут лимит голосов 'за' (2)."
+        else:
+            state.film_ratings[film_name] += 1
+            user_instance.add_vote_for(film_name)
+            log_film_scores_changed = True
+            response_text = f"👍 Ваш голос 'ЗА' \"{film_name}\" принят."
+
+    elif action == 'against':
+        if user_instance.has_voted_for(film_name):
+            response_text = f"🚫 Вы уже голосовали 'за' \"{film_name}\"."
+        elif user_instance.has_voted_against(film_name):
+            response_text = f"ℹ️ Вы уже голосовали 'против' \"{film_name}\"."
+        elif user_instance.get_votes_against() >= 2:
+            response_text = "✋ Достигнут лимит голосов 'против' (2)."
+        else:
+            state.film_ratings[film_name] -= 1
+            user_instance.add_vote_against(film_name)
+            log_film_scores_changed = True
+            response_text = f"👎 Ваш голос 'ПРОТИВ' \"{film_name}\" принят."
+
+    await query.answer(response_text, show_alert=("🚫" in response_text or "✋" in response_text))
+
+    if log_film_scores_changed:
+        logging.info(f"Current film_ratings state after votes by {user_name} (ID: {user_id}): {state.film_ratings}")
+
+        # Логика авто-завершения
+        current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in state.users.values())
+        num_films = len(state.film_ratings)
+        
+        # (Используем обе переменные, как в вашем коде /vote и /results)
+        if num_films > 0 and current_total_user_vote_actions >= 2 * num_films and not state.final_results_calculated:
+            logging.info("Vote tally condition met (via pagination). Calculating final results.")
+            state.cached_results_string = calculate_and_format_results()
+            state.final_results_calculated = True 
+            state.current_status = state.VotingStatus.FINISHED
+            results_message_for_admin = f"ГОЛОСОВАНИЕ ЗАВЕРШЕНО!\n\n{state.cached_results_string}"
+            try:
+                await bot.send_message(ADMIN_USER_ID, results_message_for_admin)
+                logging.info(f"Automatic voting ended (via pagination). Results sent to ADMIN_USER_ID {ADMIN_USER_ID}.")
+                if user_id != ADMIN_USER_ID:
+                    await query.message.answer("Ваш голос был решающим! Голосование завершено.")
+            except Exception as e:
+                logging.error(f"Error sending results to ADMIN_USER_ID {ADMIN_USER_ID} after automatic end: {e}")
+
+@router.callback_query(F.data == DUMMY_CALLBACK)
+async def handle_dummy_button(query: CallbackQuery):
+    """
+    (НОВЫЙ ХЭНДЛЕР)
+    Обрабатывает нажатие на "пустую" кнопку с названием фильма.
+    """
+    await query.answer("Это просто название фильма :) Нажимайте 👍 или 👎.")

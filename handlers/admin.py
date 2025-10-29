@@ -7,6 +7,8 @@ import state
 from config import ADMIN_USER_ID, USERS_TO_NOTIFY, GIF_URL
 from services.logic import calculate_and_format_results
 
+from keyboards.inline import create_pagination_keyboard
+
 # TODO [DX]: Создание фильтра — хорошая практика, чтобы не проверять ID админа в каждом хэндлере.
 class IsAdmin(BaseFilter):
     async def __call__(self, message: types.Message) -> bool:
@@ -16,10 +18,45 @@ router = Router()
 
 @router.message(Command("votestart"), IsAdmin())
 async def start_voting_admin(message: types.Message):
-    # TODO [UX]: После старта голосования стоит отправить уведомление всем участникам,
-    # которые добавляли фильмы, чтобы они знали о начале.
+
+    if state.current_status == state.VotingStatus.IN_PROGRESS:
+        await message.reply("Голосование уже идёт !")
+        return
     state.current_status = state.VotingStatus.IN_PROGRESS
-    await message.reply("Голосование начато!")
+    await message.reply("Начинаем голосование, рассылаем списки участникам")
+    all_film_names = list(state.film_ratings.keys())
+    if not all_film_names:
+        await message.reply("Ниче нет, никто ничего не вкинул")
+        state.current_status = state.VotingStatus.NOT_STARTED
+        return
+    users_notified_count = 0
+    bot_insstance = message.bot
+
+    for user_id, user_obj in state.users.items():
+        if user_obj.get_films():
+            message_text, keyboard = create_pagination_keyboard(
+                user_obj, all_film_names, page=0
+            )
+
+            if not keyboard:
+                logging.warning(f"User {user_id} added films, but no films to vote on.")
+                continue
+            
+            try:
+                await bot_insstance.send_message(
+                    chat_id=user_id,
+                    text=message_text,
+                    reply_markup=keyboard
+                )
+                users_notified_count +=1
+                logging.info(f"Pagelist sent to user {user_id} by /votestart")
+            except Exception as e:
+                # Если пользователь заблокировал бота
+                logging.error(f"Не удалось отправить список голосования пользователю {user_id}: {e}")
+                # (Опционально) Сообщаем админу о проблеме
+                await message.answer(f"⚠️ Не удалось отправить сообщение пользователю {user_obj.get_name()} (ID: {user_id}). Возможно, бот заблокирован.")
+
+    await message.answer(f"Рассылка завершена. Уведомлено: {users_notified_count} чел.")
 
 @router.message(Command("end"), IsAdmin())
 async def end_voting_admin(message: types.Message):
