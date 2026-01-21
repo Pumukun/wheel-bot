@@ -20,3 +20,4 @@ cached_results_string: str = ""
 fallback_cache_is_fresh: bool = False
 
 current_status: VotingStatus = VotingStatus.NOT_STARTED
+final_results_calculated: bool = False

@@ -261,10 +261,11 @@ async def vote(message: types.Message):
         current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in state.users.values())
         num_films = len(state.film_ratings)
         
-        if num_films > 0 and current_total_user_vote_actions >= 2 * num_films:
+        if num_films > 0 and current_total_user_vote_actions >= 2 * num_films and not state.final_results_calculated:
             logging.info("Vote tally condition met. Calculating final results FOR ADMIN ONLY.")
             state.cached_results_string = calculate_and_format_results()
             state.final_results_calculated = True
+            state.current_status = state.VotingStatus.FINISHED
             results_message_for_admin = f"ГОЛОСОВАНИЕ ЗАВЕРШЕНО!\n\n{state.cached_results_string}"
             try:
                 await message.bot.send_message(ADMIN_USER_ID, results_message_for_admin)
@@ -283,7 +284,7 @@ async def display_results(message: types.Message):
 
     current_results_display_string = calculate_and_format_results()
 
-    if state.VotingStatus.FINISHED:
+    if state.current_status == state.VotingStatus.FINISHED:
         await message.answer(f"Итоги Голосования (завершено):\n{state.cached_results_string}")
     else:
         current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in state.users.values())
@@ -357,12 +358,9 @@ async def handle_page_navigation(query: CallbackQuery, callback_data: NavigatePa
         logging.warning(f"Ошибка при обновлении пагинации: {e}")
         await query.answer("Не удалось обновить список.")
 
+
 @router.callback_query(VotePagingCallback.filter())
 async def handle_page_vote(query: CallbackQuery, callback_data: VotePagingCallback, bot: Bot):
-    """
-    (НОВЫЙ ХЭНДЛЕР)
-    Обрабатывает нажатия кнопок 👎 и 👍 из пагинации.
-    """
     if state.current_status == state.VotingStatus.FINISHED:
         await query.answer("Голосование уже завершено.", show_alert=True)
         return
@@ -372,24 +370,25 @@ async def handle_page_vote(query: CallbackQuery, callback_data: VotePagingCallba
 
     user_id = query.from_user.id
     user_name = query.from_user.username or query.from_user.first_name
-    
+
     film_id = callback_data.film_id
     action = callback_data.action
 
     if user_id not in state.users:
         state.users[user_id] = User(user_name, [], user_id)
-    
+
     user_instance = state.users[user_id]
 
     user_instance.ensure_shuffled_list_exists(list(state.film_ratings.keys()))
     film_name = user_instance.get_shuffled_films().get(film_id)
-    
+
     if not film_name:
         await query.answer("Ошибка: фильм не найден. Попробуйте обновить /pagelist", show_alert=True)
         return
 
-    logging.info(f"[VOTE_PAGING] User '{user_name}' ({user_id}) processing vote: '{action}' for film_id {film_id} ('{film_name}')")
-    
+    logging.info(
+        f"[VOTE_PAGING] User '{user_name}' ({user_id}) processing vote: '{action}' for film_id {film_id} ('{film_name}')")
+
     response_text = ""
     log_film_scores_changed = False
 
@@ -429,15 +428,13 @@ async def handle_page_vote(query: CallbackQuery, callback_data: VotePagingCallba
     if log_film_scores_changed:
         logging.info(f"Current film_ratings state after votes by {user_name} (ID: {user_id}): {state.film_ratings}")
 
-        # Логика авто-завершения
         current_total_user_vote_actions = sum(u.get_votes_for() + u.get_votes_against() for u in state.users.values())
         num_films = len(state.film_ratings)
-        
-        # (Используем обе переменные, как в вашем коде /vote и /results)
+
         if num_films > 0 and current_total_user_vote_actions >= 2 * num_films and not state.final_results_calculated:
             logging.info("Vote tally condition met (via pagination). Calculating final results.")
             state.cached_results_string = calculate_and_format_results()
-            state.final_results_calculated = True 
+            state.final_results_calculated = True
             state.current_status = state.VotingStatus.FINISHED
             results_message_for_admin = f"ГОЛОСОВАНИЕ ЗАВЕРШЕНО!\n\n{state.cached_results_string}"
             try:
@@ -447,6 +444,18 @@ async def handle_page_vote(query: CallbackQuery, callback_data: VotePagingCallba
                     await query.message.answer("Ваш голос был решающим! Голосование завершено.")
             except Exception as e:
                 logging.error(f"Error sending results to ADMIN_USER_ID {ADMIN_USER_ID} after automatic end: {e}")
+
+    try:
+        all_current_film_names = list(state.film_ratings.keys())
+        updated_text, updated_keyboard = create_pagination_keyboard(
+            user_instance,
+            all_current_film_names,
+            page=callback_data.page
+        )
+        if updated_keyboard:
+            await query.message.edit_text(updated_text, reply_markup=updated_keyboard)
+    except Exception as e:
+        logging.warning(f"Не удалось обновить клавиатуру после голосования: {e}")
 
 @router.callback_query(F.data == DUMMY_CALLBACK)
 async def handle_dummy_button(query: CallbackQuery):

@@ -23,6 +23,8 @@ async def start_voting_admin(message: types.Message):
         await message.reply("Голосование уже идёт !")
         return
     state.current_status = state.VotingStatus.IN_PROGRESS
+    state.final_results_calculated = False
+    state.cached_results_string = ""
     await message.reply("Начинаем голосование, рассылаем списки участникам")
     all_film_names = list(state.film_ratings.keys())
     if not all_film_names:
@@ -71,6 +73,7 @@ async def end_voting_admin(message: types.Message):
     logging.info(f"Admin (ID: {message.from_user.id}) initiated /end command.")
     state.cached_results_string = calculate_and_format_results()
     state.current_status = state.VotingStatus.FINISHED
+    state.final_results_calculated = True
     
     results_broadcast_message = f"ГОЛОСОВАНИЕ ПРИНУДИТЕЛЬНО ЗАВЕРШЕНО АДМИНИСТРАТОРОМ!\n\n{state.cached_results_string}"
     
