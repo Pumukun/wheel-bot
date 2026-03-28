@@ -5,9 +5,10 @@ from typing import List, Tuple, Optional
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+import urllib.parse
 
 from user import User
-
+import state
 
 class VotePagingCallback(CallbackData, prefix="page_vote"):
     action: str
@@ -58,7 +59,7 @@ def create_pagination_keyboard(
         voted_for = user.has_voted_for(film_name)
         voted_against = user.has_voted_against(film_name)
 
-        display_name = (film_name[:25] + '...') if len(film_name) > 28 else film_name
+        display_name = film_name
 
         if voted_for:
             display_name = f"✅ {display_name}"
@@ -93,11 +94,17 @@ def create_pagination_keyboard(
                 callback_data=VotePagingCallback(action="for", film_id=film_id, page=page).pack()
             )
 
+        final_url = state.film_urls.get(film_name) if hasattr(state, 'film_urls') else None
+        
+        if not final_url:
+            encoded_query = urllib.parse.quote(film_name)
+            final_url = f"https://www.youtube.com/results?search_query={encoded_query}"
+
         builder.row(
             btn_against,
             InlineKeyboardButton(
                 text=display_name,
-                callback_data=DUMMY_CALLBACK
+                url=final_url  # Кнопка-ссылка на видео
             ),
             btn_for
         )

@@ -14,6 +14,7 @@ class VotingStatus(Enum):
 
 users: Dict[int, User] = {}
 film_ratings: Dict[str, int] = {}
+film_urls: Dict[str, int] = {}
 
 fallback_shuffled_films_cache: Dict[int, str] = {}
 cached_results_string: str = ""

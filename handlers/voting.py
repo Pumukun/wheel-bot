@@ -1,8 +1,10 @@
 # handlers/voting.py
 import logging
+import urllib.parse
 from aiogram import Router, F, types, Bot
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery
+from youtubesearchpython.__future__ import VideosSearch
 
 from user import User
 import state
@@ -64,6 +66,26 @@ async def add(message: types.Message):
     state.film_ratings[film1] = 0
     state.film_ratings[film2] = 0
     state.fallback_cache_is_fresh = False
+
+    if not hasattr(state, 'film_urls'):
+        state.film_urls = {}
+
+    for film in (film1, film2):
+        if film not in state.film_urls:
+            try:
+                search = VideosSearch(film, limit=1)
+                search_result = await search.next()
+                if search_result['result']:
+                    # НАДЕЖНЫЙ ВАРИАНТ: берем только ID и клеим ссылку сами
+                    video_id = search_result['result'][0]['id']
+                    state.film_urls[film] = f"https://www.youtube.com/watch?v={video_id}"
+                else:
+                    encoded = urllib.parse.quote(film)
+                    state.film_urls[film] = f"https://www.youtube.com/results?search_query={encoded}"
+            except Exception as e:
+                logging.error(f"Ошибка поиска YouTube для {film}: {e}")
+                encoded = urllib.parse.quote(film)
+                state.film_urls[film] = f"https://www.youtube.com/results?search_query={encoded}" 
     
     await message.reply(f"Фильмы \"{film1}\" и \"{film2}\" добавлены вами, {user_name}.")
     logging.info(f"User {user_name} (ID: {user_id}) added films: {film1}, {film2}. Fallback cache invalidated.")
