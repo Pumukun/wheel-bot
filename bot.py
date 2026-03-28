@@ -14,7 +14,7 @@ async def main():
         level=logging.INFO,
         stream=sys.stdout,
         format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    )   
     
     bot = Bot(token=TOKEN, parse_mode=None)
     dp = Dispatcher()
